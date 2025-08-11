@@ -1,5 +1,0 @@
-kivy==2.1.0
-opencv-python==4.7.0.72
-numpy==1.24.3
-sqlite3==3.39.0
-python-dateutil==2.8.2
