@@ -51,8 +51,8 @@ app/
 │   ├── face_recognition/   # Lógica de reconocimiento
 │   ├── ui/   # Interfaces gráficas
 │   └── utils/
-├── main.py
-├── readme.md        # Punto de entrada
+├── main.py # Punto de entrada
+├── readme.md
 └── requirements.txt
 ```
 
