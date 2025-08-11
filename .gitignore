@@ -2,7 +2,7 @@
 data/*
 !.gitignore
 modelos/*
-!.gitkeep
+!.gitignore
 exports
 
 
