@@ -3,6 +3,9 @@ data/*/
 !data/.gitkeep
 modelos/*
 !modelos/.gitkeep
+data/users.db
+exports
+
 
 # Archivos de Python
 __pycache__/

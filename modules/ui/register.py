@@ -5,6 +5,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.clock import Clock
+from kivy.properties import ObjectProperty
 from kivy.logger import Logger
 from modules.camera.camera_utils import camera_manager
 from modules.face_recognition.detection import FaceDetector
@@ -15,9 +16,18 @@ import cv2
 import os
 
 class RegisterScreen(Screen):
+    camera_preview = ObjectProperty(None)
+    name_input = ObjectProperty(None)
+    status_label = ObjectProperty(None)
+    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.detector = FaceDetector()
+        self.capture_counter = 0
+        self.max_captures = 20
+        self.is_capturing = False
+        self._camera_clock = None
+        self._capture_clock = None
         
         # Layout principal
         layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
@@ -50,25 +60,22 @@ class RegisterScreen(Screen):
         # Botones
         btn_layout = BoxLayout(size_hint=(1, 0.2), spacing=10)
         
-        # Botón de captura automática
         self.auto_capture_btn = Button(
-            text="Captura Automática",
+            text="Captura Automática (20 fotos)",
             background_normal='',
             background_color=(0.2, 0.7, 0.3, 1)
         )
         self.auto_capture_btn.bind(on_press=self.start_auto_capture)
         
-        # Botón de captura manual
         self.manual_capture_btn = Button(
-            text="Captura Manual", 
+            text="Captura Manual (1 foto)", 
             background_normal='',
             background_color=(0.3, 0.5, 0.8, 1)
         )
         self.manual_capture_btn.bind(on_press=self.manual_capture)
         
-        # Botón de volver
         self.back_btn = Button(
-            text="Volver", 
+            text="Volver al Menú", 
             background_normal='',
             background_color=(0.8, 0.3, 0.3, 1)
         )
@@ -80,30 +87,23 @@ class RegisterScreen(Screen):
         
         layout.add_widget(btn_layout)
         self.add_widget(layout)
-        
-        # Variables de control
-        self.capture_counter = 0
-        self.max_captures = 20
-        self.is_capturing = False
-        self._camera_clock = None
-        self._capture_clock = None
 
     def on_enter(self):
         """Se ejecuta cuando la pantalla se muestra"""
-        Logger.info("Registro: Entrando a pantalla de registro")
+        Logger.info("PantallaRegistro: Mostrando pantalla de registro")
         try:
             if camera_manager.open_camera():
                 self._camera_clock = Clock.schedule_interval(self.update_camera, 1.0/30.0)
                 self.status_label.text = "[b]Estado:[/b] Cámara activa - Posicione el rostro"
                 self.status_label.color = (0.1, 0.1, 0.1, 1)
         except Exception as e:
-            Logger.error(f"Registro: Error al iniciar cámara: {str(e)}")
+            Logger.error(f"PantallaRegistro: Error al iniciar cámara: {str(e)}")
             self.status_label.text = f"[b]Error:[/b] {str(e)}"
             self.status_label.color = (0.8, 0.2, 0.2, 1)
 
     def on_leave(self):
         """Se ejecuta cuando la pantalla se oculta"""
-        Logger.info("Registro: Saliendo de pantalla de registro")
+        Logger.info("PantallaRegistro: Ocultando pantalla de registro")
         if self._camera_clock:
             Clock.unschedule(self._camera_clock)
         if self._capture_clock:
@@ -138,7 +138,7 @@ class RegisterScreen(Screen):
             if texture:
                 self.camera_preview.texture = texture
         except Exception as e:
-            Logger.error(f"Registro: Error en update_camera: {str(e)}")
+            Logger.error(f"PantallaRegistro: Error en update_camera: {str(e)}")
 
     def start_auto_capture(self, instance):
         """Inicia el proceso de captura automática"""
@@ -167,15 +167,15 @@ class RegisterScreen(Screen):
             self.capture_counter = 0
             self._capture_clock = Clock.schedule_interval(
                 lambda dt: self.capture_face(user_folder, user_name), 
-                0.5
+                0.5  # Captura cada 0.5 segundos
             )
         except Exception as e:
-            Logger.error(f"Registro: Error en start_auto_capture: {str(e)}")
+            Logger.error(f"PantallaRegistro: Error en start_auto_capture: {str(e)}")
             self.status_label.text = f"[b]Error:[/b] {str(e)}"
             self.status_label.color = (0.8, 0.2, 0.2, 1)
 
     def validate_username(self, user_name):
-        """Valida el nombre de usuario"""
+        """Valida que el nombre de usuario sea válido"""
         if not user_name.replace(" ", "").isalnum():
             self.status_label.text = "[b]Error:[/b] Solo use letras y números"
             self.status_label.color = (0.8, 0.2, 0.2, 1)
@@ -206,6 +206,7 @@ class RegisterScreen(Screen):
         
         if faces is not None and len(faces) > 0:
             try:
+                # Recortar y redimensionar el rostro
                 roi = cv2.resize(gray[faces[0][1]:faces[0][1]+faces[0][3], 
                                 faces[0][0]:faces[0][0]+faces[0][2]], 
                                 (200, 200))
@@ -214,7 +215,7 @@ class RegisterScreen(Screen):
                 increment_photo_count(user_name)
                 self.capture_counter += 1
             except Exception as e:
-                Logger.error(f"Registro: Error al guardar imagen: {e}")
+                Logger.error(f"PantallaRegistro: Error al guardar imagen: {e}")
 
     def manual_capture(self, instance):
         """Captura manual de un solo rostro"""
@@ -259,15 +260,19 @@ class RegisterScreen(Screen):
             cv2.imwrite(img_path, roi)
             increment_photo_count(user_name)
             
-            # Entrenar modelo
+            # Entrenar modelo y recargar
             if train_model():
+                from modules.face_recognition.recognition import FaceRecognizer
+                recognizer = FaceRecognizer()
+                recognizer.reload_model()
+                
                 self.status_label.text = f"[b]Éxito:[/b] Foto de {user_name} guardada"
                 self.status_label.color = (0.2, 0.7, 0.2, 1)
             else:
                 self.status_label.text = "[b]Error:[/b] Foto guardada pero falló el entrenamiento"
                 self.status_label.color = (0.8, 0.2, 0.2, 1)
         except Exception as e:
-            Logger.error(f"Registro: Error en manual_capture: {str(e)}")
+            Logger.error(f"PantallaRegistro: Error en manual_capture: {str(e)}")
             self.status_label.text = f"[b]Error:[/b] {str(e)}"
             self.status_label.color = (0.8, 0.2, 0.2, 1)
 
@@ -276,8 +281,12 @@ class RegisterScreen(Screen):
         self.is_capturing = False
         
         if self.capture_counter > 0:
-            # Entrenar modelo
+            # Entrenar modelo y recargar
             if train_model():
+                from modules.face_recognition.recognition import FaceRecognizer
+                recognizer = FaceRecognizer()
+                recognizer.reload_model()
+                
                 self.status_label.text = f"[b]Éxito:[/b] {user_name} registrado con {self.capture_counter} fotos"
                 self.status_label.color = (0.2, 0.7, 0.2, 1)
             else:
