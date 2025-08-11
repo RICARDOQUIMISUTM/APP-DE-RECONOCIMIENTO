@@ -13,71 +13,67 @@ def ensure_model_dir():
     os.makedirs(os.path.join(MODEL_DIR, "global"), exist_ok=True)
 
 def train_model():
-    """Entrena el modelo global con todos los usuarios registrados"""
-    init_db()
-    ensure_model_dir()
-    faces = []
-    labels = []
-    label_map = {}
-    label_id = 0
-
-    # Obtener todos los usuarios de la base de datos
-    users = list_users()
-    if not users:
-        Logger.warning("⚠ No hay usuarios para entrenar")
-        return False
-
-    Logger.info(f"Iniciando entrenamiento para {len(users)} usuarios...")
-    
-    for user_id, user_name, _, _ in users:
-        user_dir = os.path.join("data", user_name)
-        if not os.path.exists(user_dir):
-            Logger.warning(f"No se encontraron fotos para {user_name}")
-            continue
-
-        label_map[label_id] = user_name
-        photos = [f for f in os.listdir(user_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    """Entrenamiento con verificación de datos"""
+    try:
+        init_db()
+        ensure_model_dir()
         
-        if not photos:
-            Logger.warning(f"Usuario {user_name} no tiene fotos válidas")
-            continue
-
-        Logger.info(f"Procesando {len(photos)} fotos de {user_name}...")
+        # Verificar que hay datos suficientes
+        users = list_users()
+        if not users:
+            Logger.error("No hay usuarios para entrenar")
+            return False
+            
+        # Colectar datos
+        faces, labels, label_map = [], [], {}
+        label_id = 0
         
-        for photo in photos:
-            img_path = os.path.join(user_dir, photo)
-            try:
+        for user_id, user_name, _, _ in users:
+            user_dir = os.path.join("data", user_name)
+            if not os.path.exists(user_dir):
+                continue
+                
+            photos = [f for f in os.listdir(user_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            if not photos:
+                continue
+                
+            label_map[label_id] = user_name
+            
+            for photo in photos:
+                img_path = os.path.join(user_dir, photo)
                 img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
                 if img is not None:
-                    # Preprocesamiento de la imagen
                     img = cv2.resize(img, (200, 200))
-                    img = cv2.equalizeHist(img)  # Normalización de contraste
+                    img = cv2.equalizeHist(img)
                     faces.append(img)
                     labels.append(label_id)
-            except Exception as e:
-                Logger.error(f"Error procesando {img_path}: {e}")
+            
+            label_id += 1
 
-        label_id += 1
+        if len(faces) < 2:  # Mínimo 2 imágenes para entrenar
+            Logger.error(f"No hay suficientes imágenes ({len(faces)}) para entrenar")
+            return False
 
-    if not faces:
-        Logger.error("⚠ No se encontraron imágenes válidas para entrenar")
-        return False
-
-    try:
-        # Crear y entrenar el modelo
+        # Entrenar y guardar
         recognizer = cv2.face.LBPHFaceRecognizer_create()
         recognizer.train(faces, np.array(labels))
         
-        # Guardar modelo entrenado
-        recognizer.save(GLOBAL_MODEL_PATH)
+        # Guardar en archivo temporal primero
+        temp_model = f"{GLOBAL_MODEL_PATH}.tmp"
+        recognizer.save(temp_model)
         
-        # Guardar mapeo de etiquetas
+        # Reemplazar archivos atómicamente
+        import shutil
+        shutil.move(temp_model, GLOBAL_MODEL_PATH)
+        
+        # Guardar etiquetas
         with open(LABEL_MAP_FILE, "w", encoding="utf-8") as f:
             for id_, name in label_map.items():
                 f.write(f"{id_},{name}\n")
         
-        Logger.info(f"✅ Modelo entrenado con {len(faces)} imágenes de {len(label_map)} usuarios")
+        Logger.info(f"Modelo entrenado con {len(faces)} imágenes de {len(label_map)} usuarios")
         return True
+        
     except Exception as e:
-        Logger.error(f"❌ Error al entrenar modelo: {e}")
+        Logger.error(f"Error crítico en entrenamiento: {e}")
         return False

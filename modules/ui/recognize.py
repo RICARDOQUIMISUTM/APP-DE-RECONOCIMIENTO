@@ -70,13 +70,17 @@ class RecognizeScreen(Screen):
 
     def on_enter(self):
         """Se ejecuta cuando la pantalla se muestra"""
-        Logger.info("PantallaReconocimiento: Mostrando pantalla de reconocimiento")
+        Logger.info("PantallaReconocimiento: Iniciando...")
         try:
+            # Asegurar que tenemos la última versión del reconocedor
+            from modules.face_recognition.recognition import FaceRecognizer
+            self.recognizer = FaceRecognizer()
+            
             if camera_manager.open_camera():
                 self._camera_clock = Clock.schedule_interval(self.update, 1.0/15.0)
         except Exception as e:
-            Logger.error(f"PantallaReconocimiento: Error al iniciar cámara: {str(e)}")
-            self.info.text = f"Error cámara: {str(e)}"
+            Logger.error(f"Error al iniciar reconocimiento: {str(e)}")
+            self.info.text = f"Error: {str(e)}"
 
     def on_leave(self):
         """Se ejecuta cuando la pantalla se oculta"""
@@ -87,44 +91,39 @@ class RecognizeScreen(Screen):
         self.clear_gallery()
 
     def update(self, dt):
-        """Actualiza la vista de la cámara y realiza reconocimiento"""
-        frame = camera_manager.read_frame()
-        if frame is None:
-            return
+        """Actualización con manejo de errores mejorado"""
+        try:
+            frame = camera_manager.read_frame()
+            if frame is None:
+                return
+                
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = self.detector.detect(gray)
             
-        # Convertir a escala de grises para detección
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = self.detector.detect(gray)
-        
-        if faces is not None and len(faces) > 0:
-            (x, y, w, h) = faces[0]
+            if faces is not None and len(faces) > 0:
+                (x, y, w, h) = faces[0]
+                roi = gray[y:y+h, x:x+w]
+                
+                # Usar el reconocedor actualizado
+                name, conf = self.recognizer.predict(roi)
+                
+                # Dibujar resultados
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                text = f"{name} ({conf:.1f}%)" if conf else name
+                cv2.putText(frame, text, (x, y-10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                
+                if name != "Desconocido" and name != self.current_user:
+                    self.current_user = name
+                    self.update_gallery(name)
+            else:
+                if self.current_user is not None:
+                    self.clear_gallery()
+                    self.current_user = None
             
-            # Recortar región de interés
-            roi = gray[y:y+h, x:x+w]
-            
-            # Realizar predicción
-            name, conf = self.recognizer.predict(roi)
-            
-            # Dibujar resultados en el frame
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            cv2.putText(frame, f"{name}", (x, y-10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            conf_text = f"{conf:.1f}%" if conf is not None else "-"
-            cv2.putText(frame, f"Confianza: {conf_text}", (x, y+h+20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-            
-            # Actualizar galería si es un usuario diferente
-            if name and name != self.current_user:
-                self.current_user = name
-                self.update_gallery(name)
-        else:
-            if self.current_user is not None:
-                self.clear_gallery()
-                self.current_user = None
-        
-        # Mostrar frame con anotaciones
-        self.img.texture = camera_manager.frame_to_texture(frame)
-
+            self.img.texture = camera_manager.frame_to_texture(frame)
+        except Exception as e:
+            Logger.error(f"Error en update: {str(e)}")
     def update_gallery(self, user_name):
         """Actualiza la galería con las fotos del usuario reconocido"""
         self.gallery_grid.clear_widgets()

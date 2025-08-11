@@ -29,25 +29,42 @@ def add_user(name):
     conn = _get_conn()
     cur = conn.cursor()
     try:
-        # Crear carpeta para el usuario
-        user_folder = ensure_user_folder(user_name=name)
+        # Verificar si el usuario ya existe
+        cur.execute("SELECT id FROM users WHERE name = ?", (name,))
+        exists = cur.fetchone()
         
-        # Insertar en la base de datos
+        if exists:
+            # Usuario existe, no hacer nada
+            conn.close()
+            return False
+            
+        # Insertar nuevo usuario
         cur.execute(
-            "INSERT INTO users (name, created_at) VALUES (?, ?)", 
-            (name, datetime.utcnow().isoformat())
+            "INSERT INTO users (name, created_at, photos_count) VALUES (?, ?, ?)", 
+            (name, datetime.utcnow().isoformat(), 0)
         )
         conn.commit()
         return True
-    except sqlite3.IntegrityError:
-        print(f"Usuario {name} ya existe")
-        return False
     except Exception as e:
-        print(f"Error al agregar usuario: {e}")
+        Logger.error(f"Error al agregar usuario {name}: {e}")
         return False
     finally:
         conn.close()
 
+def update_photo_count(user_name):
+    """Actualiza el contador de fotos para un usuario existente"""
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE users SET photos_count = photos_count + 1 WHERE name = ?",
+            (user_name,)
+        )
+        conn.commit()
+    except Exception as e:
+        Logger.error(f"Error al actualizar contador de {user_name}: {e}")
+    finally:
+        conn.close()
 def list_users():
     conn = _get_conn()
     cur = conn.cursor()

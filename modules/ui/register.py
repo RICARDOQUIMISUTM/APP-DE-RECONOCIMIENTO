@@ -152,25 +152,35 @@ class RegisterScreen(Screen):
         if not self.validate_username(user_name):
             return
             
-        # Registrar usuario en la base de datos
-        if not add_user(user_name):
-            self.status_label.text = "[b]Error:[/b] Usuario ya existe o no se pudo registrar"
-            self.status_label.color = (0.8, 0.2, 0.2, 1)
-            return
-            
         try:
+            # Verificar si el usuario existe
+            user_exists = os.path.exists(os.path.join("data", user_name))
+            
+            if not user_exists:
+                # Registrar usuario en la base de datos solo si es nuevo
+                if not add_user(user_name):
+                    self.status_label.text = "[b]Error:[/b] No se pudo registrar usuario"
+                    self.status_label.color = (0.8, 0.2, 0.2, 1)
+                    return
+            
             user_folder = ensure_user_folder(user_name=user_name)
+            
+            # Contar fotos existentes para no sobrescribir
+            existing_photos = len([f for f in os.listdir(user_folder) 
+                                if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+            start_count = existing_photos + 1
+            
             self.status_label.text = f"[b]Estado:[/b] Capturando {self.max_captures} fotos para {user_name}..."
             self.status_label.color = (0.2, 0.6, 0.2, 1)
             
             self.is_capturing = True
             self.capture_counter = 0
             self._capture_clock = Clock.schedule_interval(
-                lambda dt: self.capture_face(user_folder, user_name), 
+                lambda dt: self.capture_face(user_folder, user_name, start_count), 
                 0.5  # Captura cada 0.5 segundos
             )
         except Exception as e:
-            Logger.error(f"PantallaRegistro: Error en start_auto_capture: {str(e)}")
+            Logger.error(f"Error en start_auto_capture: {str(e)}")
             self.status_label.text = f"[b]Error:[/b] {str(e)}"
             self.status_label.color = (0.8, 0.2, 0.2, 1)
 
@@ -187,9 +197,8 @@ class RegisterScreen(Screen):
             return False
             
         return True
-
-    def capture_face(self, user_folder, user_name):
-        """Captura un rostro y guarda la imagen"""
+    def capture_face(self, user_folder, user_name, start_count):
+        """Captura un rostro y guarda la imagen con numeración correcta"""
         if not self.is_capturing or self.capture_counter >= self.max_captures:
             if self._capture_clock:
                 Clock.unschedule(self._capture_clock)
@@ -210,12 +219,18 @@ class RegisterScreen(Screen):
                 roi = cv2.resize(gray[faces[0][1]:faces[0][1]+faces[0][3], 
                                 faces[0][0]:faces[0][0]+faces[0][2]], 
                                 (200, 200))
-                img_path = os.path.join(user_folder, f"{self.capture_counter+1}.jpg")
+                
+                # Guardar con numeración continua
+                img_path = os.path.join(user_folder, f"{start_count + self.capture_counter}.jpg")
                 cv2.imwrite(img_path, roi)
-                increment_photo_count(user_name)
+                
+                # Actualizar contador solo si es nuevo usuario
+                if start_count == 1:  # Es un nuevo registro
+                    increment_photo_count(user_name)
+                
                 self.capture_counter += 1
             except Exception as e:
-                Logger.error(f"PantallaRegistro: Error al guardar imagen: {e}")
+                Logger.error(f"Error al guardar imagen: {e}")
 
     def manual_capture(self, instance):
         """Captura manual de un solo rostro"""
@@ -277,25 +292,30 @@ class RegisterScreen(Screen):
             self.status_label.color = (0.8, 0.2, 0.2, 1)
 
     def finish_registration(self, user_name):
-        """Finaliza el registro y entrena el modelo"""
+        """Finaliza el registro actualizando el modelo"""
         self.is_capturing = False
         
         if self.capture_counter > 0:
-            # Entrenar modelo y recargar
+            # Entrenar modelo
             if train_model():
+                # Forzar recarga del modelo
                 from modules.face_recognition.recognition import FaceRecognizer
                 recognizer = FaceRecognizer()
-                recognizer.reload_model()
+                success = recognizer.reload_model()
                 
-                self.status_label.text = f"[b]Éxito:[/b] {user_name} registrado con {self.capture_counter} fotos"
-                self.status_label.color = (0.2, 0.7, 0.2, 1)
+                if success:
+                    self.status_label.text = f"[b]Éxito:[/b] Se agregaron {self.capture_counter} fotos a {user_name}"
+                    self.status_label.color = (0.2, 0.7, 0.2, 1)
+                else:
+                    self.status_label.text = "[b]Error:[/b] Modelo no se pudo recargar"
+                    self.status_label.color = (0.8, 0.2, 0.2, 1)
             else:
-                self.status_label.text = "[b]Error:[/b] Fotos guardadas pero falló el entrenamiento"
+                self.status_label.text = "[b]Error:[/b] Falló el entrenamiento"
                 self.status_label.color = (0.8, 0.2, 0.2, 1)
         else:
-            self.status_label.text = "[b]Error:[/b] No se capturaron fotos válidas"
+            self.status_label.text = "[b]Error:[/b] No se capturaron fotos"
             self.status_label.color = (0.8, 0.2, 0.2, 1)
-
+            
     def go_back(self, instance):
         """Regresa al menú principal"""
         self.manager.current = 'main_menu'
