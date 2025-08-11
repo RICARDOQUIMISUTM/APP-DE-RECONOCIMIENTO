@@ -63,16 +63,18 @@ class CameraManager:
             Logger.warning("No se pudo leer frame de la cámara")
             return None
         return frame
-    
     def frame_to_texture(self, frame):
         if frame is None:
-            return None
-        
+             return None
         try:
-            # Convertir de BGR a RGB (sin flip vertical)
+        # Convertir de BGR a RGB (OpenCV usa BGR por defecto)
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            buf = frame_rgb.tostring()
-            
+        
+        # Aplicar flip vertical para corregir la orientación
+            frame_corrected = cv2.flip(frame_rgb, 0)  # 0 = flip vertical
+        
+        # Crear textura Kivy
+            buf = frame_corrected.tobytes()
             texture = Texture.create(
                 size=(frame.shape[1], frame.shape[0]), 
                 colorfmt='rgb'
@@ -82,6 +84,5 @@ class CameraManager:
         except Exception as e:
             Logger.error(f"Error al convertir frame a textura: {str(e)}")
             return None
-
 # Instancia global del administrador de cámara
 camera_manager = CameraManager()

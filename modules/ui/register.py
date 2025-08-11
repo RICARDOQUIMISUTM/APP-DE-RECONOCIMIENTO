@@ -113,13 +113,27 @@ class RegisterScreen(Screen):
         self.capture_counter = 0
 
     def update_camera(self, dt):
-        """Actualiza la vista previa de la cámara - Solo muestra la imagen sin procesamiento"""
+        """Actualiza la vista previa de la cámara"""
         try:
             frame = camera_manager.read_frame()
             if frame is None:
                 return
+                
+            # Detección de rostros
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = self.detector.detect(gray)
             
-            # Solo convertir el frame a textura sin ningún procesamiento adicional
+            # Dibujar rectángulo alrededor del rostro
+            if faces is not None and len(faces) > 0:
+                (x, y, w, h) = faces[0]
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                
+                # Mostrar contador durante captura automática
+                if self.is_capturing:
+                    cv2.putText(frame, f"Capturas: {self.capture_counter}/{self.max_captures}", 
+                               (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+            
+            # Actualizar vista previa
             texture = camera_manager.frame_to_texture(frame)
             if texture:
                 self.camera_preview.texture = texture
