@@ -1,9 +1,8 @@
 # Exclusión específica de fotos y modelos
-data/*/
-!data/.gitkeep
+data/*
+!.gitignore
 modelos/*
-!modelos/.gitkeep
-data/users.db
+!.gitkeep
 exports
 
 
