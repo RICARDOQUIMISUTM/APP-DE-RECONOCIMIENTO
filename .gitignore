@@ -1,0 +1,47 @@
+# Exclusión específica de fotos y modelos
+# Ignorar todo en data y modelo
+data/*
+modelos/*
+
+# Excepto los archivos marcador
+!data/.gitkeep
+!modelos/.gitkeep
+exports
+
+
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entornos virtuales
+venv/
+.env/
+
+# Archivos de Kivy
+*.kivy/
+.kivy/
+*.log
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.sublime*
+
+# Archivos de compilación
+build/
+dist/
+*.egg-info/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de entrenamiento (adicionales)
+*.weights
+*.index
+*.meta
+*.pb
+*.tflite
