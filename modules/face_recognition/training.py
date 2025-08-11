@@ -1,56 +1,68 @@
 import os
 import cv2
 import numpy as np
+from modules.database.operations import list_users, init_db
 
 MODEL_DIR = "modelos"
-MODEL_FILE = os.path.join(MODEL_DIR, "recognizer.yml")
-LABEL_MAP_FILE = os.path.join(MODEL_DIR, "label_map.txt")
+GLOBAL_MODEL_PATH = os.path.join(MODEL_DIR, "global", "recognizer.yml")
+LABEL_MAP_FILE = os.path.join(MODEL_DIR, "global", "label_map.txt")
 
-def train_from_folder(data_folder="data"):
+def ensure_model_dir():
+    os.makedirs(os.path.join(MODEL_DIR, "global"), exist_ok=True)
+
+def train_model():
+    """Entrena el modelo global con todos los usuarios"""
+    init_db()
+    ensure_model_dir()
     faces = []
     labels = []
     label_map = {}
     label_id = 0
 
-    if not os.path.exists(data_folder):
-        print("❌ Carpeta de datos no existe:", data_folder)
+    users = list_users()
+    if not users:
+        print("⚠ No hay usuarios para entrenar")
         return False
 
-    people = [d for d in os.listdir(data_folder) if os.path.isdir(os.path.join(data_folder, d))]
-    if not people:
-        print("⚠ No hay subcarpetas de usuarios en 'data/'.")
-        return False
+    for user_id, user_name, _, _ in users:
+        user_dir = os.path.join("data", user_name)
+        if not os.path.exists(user_dir):
+            continue
 
-    for person in people:
-        person_path = os.path.join(data_folder, person)
-        label_map[label_id] = person
-        for fname in os.listdir(person_path):
-            fpath = os.path.join(person_path, fname)
-            img = cv2.imread(fpath, cv2.IMREAD_GRAYSCALE)
-            if img is None:
-                continue
-            img = cv2.resize(img, (200, 200))
-            faces.append(img)
-            labels.append(label_id)
+        label_map[label_id] = user_name
+        photos = [f for f in os.listdir(user_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        
+        for photo in photos:
+            img_path = os.path.join(user_dir, photo)
+            try:
+                img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                if img is not None:
+                    img = cv2.resize(img, (200, 200))
+                    img = cv2.equalizeHist(img)
+                    faces.append(img)
+                    labels.append(label_id)
+            except Exception as e:
+                print(f"Error procesando {img_path}: {e}")
+
         label_id += 1
 
     if not faces:
-        print("⚠ No se encontraron imágenes válidas para entrenar.")
+        print("⚠ No se encontraron imágenes válidas para entrenar")
         return False
 
     try:
         recognizer = cv2.face.LBPHFaceRecognizer_create()
+        recognizer.train(faces, np.array(labels))
+        
+        # Guardar modelo y mapeo de etiquetas
+        recognizer.save(GLOBAL_MODEL_PATH)
+        
+        with open(LABEL_MAP_FILE, "w", encoding="utf-8") as f:
+            for id_, name in label_map.items():
+                f.write(f"{id_},{name}\n")
+        
+        print(f"✅ Modelo entrenado con {len(faces)} imágenes de {len(label_map)} usuarios")
+        return True
     except Exception as e:
-        print("❌ cv2.face no disponible o error:", e)
+        print(f"❌ Error al entrenar modelo: {e}")
         return False
-
-    recognizer.train(faces, np.array(labels))
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    recognizer.save(MODEL_FILE)
-
-    with open(LABEL_MAP_FILE, "w", encoding="utf-8") as f:
-        for id_, name in label_map.items():
-            f.write(f"{id_},{name}\n")
-
-    print(f"✅ Entrenamiento completado: {len(faces)} imágenes, {len(label_map)} usuarios")
-    return True

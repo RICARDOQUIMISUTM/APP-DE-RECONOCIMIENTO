@@ -51,11 +51,7 @@ class MainMenuScreen(Screen):
         Clock.unschedule(self.update_camera)
         camera_manager.release_camera()
 
-    def update_camera(self, dt):
-        """Actualiza la vista previa de la cámara"""
-        frame = camera_manager.read_frame()
-        if frame is not None:
-            self.camera_preview.texture = camera_manager.frame_to_texture(frame)
+
 
     def go_to_screen(self, screen_name):
         """Navega a la pantalla especificada"""

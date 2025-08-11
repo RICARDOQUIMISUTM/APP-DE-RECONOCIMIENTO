@@ -1,54 +1,62 @@
 import os
 import cv2
 
-MODEL_DIR = "modelos"
-MODEL_FILE = os.path.join(MODEL_DIR, "recognizer.yml")
-LABEL_MAP_FILE = os.path.join(MODEL_DIR, "label_map.txt")
-
 class FaceRecognizer:
     def __init__(self):
-        self.recognizer = None
+        self.recognizer = cv2.face.LBPHFaceRecognizer_create()
         self.label_map = {}
-        self._create_recognizer()
-        self.load()
+        self.is_trained = False
+        self.load_model()
 
-    def _create_recognizer(self):
-        try:
-            self.recognizer = cv2.face.LBPHFaceRecognizer_create()
-        except Exception:
+    def load_model(self):
+        """Carga el modelo entrenado si existe"""
+        model_path = "modelos/global/recognizer.yml"
+        label_path = "modelos/global/label_map.txt"
+        
+        if os.path.exists(model_path) and os.path.exists(label_path):
             try:
-                self.recognizer = cv2.createLBPHFaceRecognizer()
-            except Exception:
-                self.recognizer = None
-                print("⚠ Aviso: cv2.face LBPH no disponible. Reconocimiento desactivado.")
-
-    def load(self):
-        # Cargar modelo entrenado
-        if self.recognizer and os.path.exists(MODEL_FILE):
-            try:
-                self.recognizer.read(MODEL_FILE)
+                self.recognizer.read(model_path)
+                
+                with open(label_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        id_s, name = line.strip().split(",", 1)
+                        self.label_map[int(id_s)] = name
+                
+                self.is_trained = True
+                print("✅ Modelo cargado correctamente")
             except Exception as e:
-                print("Error cargando modelo:", e)
+                print(f"❌ Error al cargar modelo: {e}")
+                self.is_trained = False
+        else:
+            print("⚠ Modelo no encontrado, necesita entrenamiento")
+            self.is_trained = False
 
-        # Cargar mapa de etiquetas
-        self.label_map.clear()
-        if os.path.exists(LABEL_MAP_FILE):
-            with open(LABEL_MAP_FILE, "r", encoding="utf-8") as f:
-                for line in f:
-                    id_s, name = line.strip().split(",", 1)
-                    self.label_map[int(id_s)] = name
-
-    def predict(self, face_roi):
+    def predict(self, face_image):
         """
-        face_roi: imagen en escala de grises del rostro recortado.
-        Retorna (nombre_usuario, confianza) o (None, None) si no disponible.
+        Realiza predicción solo si el modelo está entrenado
+        Args:
+            face_image: Imagen del rostro (BGR o escala de grises)
+        Returns:
+            tuple: (nombre, confianza) o ("Desconocido", None) si no entrenado
         """
-        if not self.recognizer:
-            return None, None
+        if not self.is_trained:
+            return "Desconocido", None
+        
         try:
-            label_id, confidence = self.recognizer.predict(face_roi)
+            # Convertir a escala de grises si es necesario
+            if len(face_image.shape) == 3:  # Imagen BGR
+                gray = cv2.cvtColor(face_image, cv2.COLOR_BGR2GRAY)
+            else:  # Ya está en escala de grises
+                gray = face_image
+            
+            # Redimensionar si es necesario
+            if gray.shape != (200, 200):
+                gray = cv2.resize(gray, (200, 200))
+            
+            # Realizar predicción
+            label_id, confidence = self.recognizer.predict(gray)
             name = self.label_map.get(label_id, f"Desconocido ({label_id})")
             return name, confidence
         except Exception as e:
-            print("Error en predicción:", e)
-            return None, None
+            print(f"Error en predicción: {e}")
+            return "Desconocido", None

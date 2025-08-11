@@ -18,21 +18,15 @@ class RecognizeScreen(Screen):
         self.detector = FaceDetector()
         self.recognizer = FaceRecognizer()
         self.img = Image()
-        self.info = Label(text="Estado: listo", size_hint=(1, .1))
-        self.gallery_label = Label(text="", size_hint=(1, .1))
-        self.back_btn = Button(text="Volver", size_hint=(1, .1))
+        self.info = Label(text="Estado: listo", size_hint=(1, 0.1))
+        self.gallery_label = Label(text="", size_hint=(1, 0.1))
+        self.back_btn = Button(text="Volver", size_hint=(1, 0.1))
         self.back_btn.bind(on_press=self.go_back)
 
         # Configuración de la galería
         self.scroll = ScrollView()
-        self.gallery_grid = GridLayout(
-            cols=3, 
-            spacing=5, 
-            size_hint_y=None
-        )
-        self.gallery_grid.bind(
-            minimum_height=self.gallery_grid.setter('height')
-        )
+        self.gallery_grid = GridLayout(cols=3, spacing=5, size_hint_y=None)
+        self.gallery_grid.bind(minimum_height=self.gallery_grid.setter('height'))
         self.scroll.add_widget(self.gallery_grid)
 
         layout = BoxLayout(orientation='vertical')
@@ -46,52 +40,47 @@ class RecognizeScreen(Screen):
         self.current_user = None
 
     def on_enter(self):
+        """Se ejecuta cuando la pantalla se muestra"""
         try:
             if camera_manager.open_camera():
                 Clock.schedule_interval(self.update, 1.0/15.0)
-                self.clear_gallery()
         except Exception as e:
             self.info.text = f"Error cámara: {str(e)}"
 
     def on_leave(self):
+        """Se ejecuta cuando la pantalla se oculta"""
         Clock.unschedule(self.update)
         camera_manager.release_camera()
         self.clear_gallery()
 
     def update(self, dt):
+        """Actualiza la vista de la cámara y realiza reconocimiento"""
         frame = camera_manager.read_frame()
         if frame is None:
             return
             
+        # Convertir a escala de grises para detección
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = self.detector.detect(gray)
         
         if faces is not None and len(faces) > 0:
-            (x,y,w,h) = faces[0]
+            (x, y, w, h) = faces[0]
+            
+            # Recortar región de interés (ya en escala de grises)
             roi = gray[y:y+h, x:x+w]
+            
+            # Realizar predicción
             name, conf = self.recognizer.predict(roi)
             
-            cv2.rectangle(frame, (x,y), (x+w, y+h), (0,255,0), 2)
-            cv2.putText(
-                frame, 
-                f"{name}", 
-                (x, y-10), 
-                cv2.FONT_HERSHEY_SIMPLEX, 
-                0.6, 
-                (255,255,255), 
-                2
-            )
+            # Dibujar resultados
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+            cv2.putText(frame, f"{name}", (x, y-10), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             conf_text = f"{conf:.1f}" if conf is not None else "-"
-            cv2.putText(
-                frame, 
-                f"Conf: {conf_text}", 
-                (x, y+h+20), 
-                cv2.FONT_HERSHEY_SIMPLEX, 
-                0.5, 
-                (255,255,0), 
-                1
-            )
+            cv2.putText(frame, f"Conf: {conf_text}", (x, y+h+20), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
             
+            # Actualizar galería si es un usuario diferente
             if name and name != self.current_user:
                 self.current_user = name
                 self.update_gallery(name)
@@ -100,7 +89,10 @@ class RecognizeScreen(Screen):
                 self.clear_gallery()
                 self.current_user = None
         
+        # Mostrar frame con anotaciones
         self.img.texture = camera_manager.frame_to_texture(frame)
+
+    # ... (resto de métodos permanecen igual)
 
     def update_gallery(self, user_name):
         self.gallery_grid.clear_widgets()
