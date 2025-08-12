@@ -82,6 +82,9 @@ class CameraManager:
                 
             try:
                 ret, frame = self.cap.read()
+                if ret:
+                    # CORREGIR EL EFECTO ESPEJO AQUÍ
+                    frame = cv2.flip(frame, 1)  # Volteo horizontal
                 return frame if ret else None
             except Exception as e:
                 Logger.error(f"Error al leer frame: {str(e)}")
@@ -92,10 +95,11 @@ class CameraManager:
             return None
             
         try:
+            # Voltear verticalmente para corregir orientación en Kivy
+            frame = cv2.flip(frame, 0)  # 0 = volteo vertical
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             buf = frame_rgb.tobytes()
-            frame_corrected = cv2.flip(frame_rgb, -1)
-            buf = frame_corrected.tobytes()
+            
             texture = Texture.create(
                 size=(frame.shape[1], frame.shape[0]), 
                 colorfmt='rgb'

@@ -96,7 +96,10 @@ class RecognizeScreen(Screen):
             frame = camera_manager.read_frame()
             if frame is None:
                 return
-                
+            
+            # AGREGAR ESTA LÍNEA PARA CORREGIR EL EFECTO ESPEJO
+            frame = cv2.flip(frame, 1)  # Volteo horizontal
+            
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = self.detector.detect(gray)
             
@@ -124,6 +127,7 @@ class RecognizeScreen(Screen):
             self.img.texture = camera_manager.frame_to_texture(frame)
         except Exception as e:
             Logger.error(f"Error en update: {str(e)}")
+
     def update_gallery(self, user_name):
         """Actualiza la galería con las fotos del usuario reconocido"""
         self.gallery_grid.clear_widgets()
