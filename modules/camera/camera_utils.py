@@ -94,7 +94,8 @@ class CameraManager:
         try:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             buf = frame_rgb.tobytes()
-            
+            frame_corrected = cv2.flip(frame_rgb, -1)
+            buf = frame_corrected.tobytes()
             texture = Texture.create(
                 size=(frame.shape[1], frame.shape[0]), 
                 colorfmt='rgb'
