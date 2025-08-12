@@ -83,7 +83,7 @@ class CameraManager:
             try:
                 ret, frame = self.cap.read()
                 if ret:
-                    # CORREGIR EL EFECTO ESPEJO AQUÍ
+                    # CORREGI EL EFECTO ESPEJO AQUÍ
                     frame = cv2.flip(frame, 1)  # Volteo horizontal
                 return frame if ret else None
             except Exception as e:

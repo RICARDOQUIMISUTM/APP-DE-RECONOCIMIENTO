@@ -49,11 +49,13 @@ app/
 │   ├── camera/     # Manejo de cámara
 │   ├── database/   # Operaciones con DB
 │   ├── face_recognition/   # Lógica de reconocimiento
-│   ├── ui/   # Interfaces gráficas
+│   ├── ui/         # Interfaces gráficas
 │   └── utils/
-├── main.py # Punto de entrada
+├── main.py         # Punto de entrada
 ├── readme.md
-└── requirements.txt
+├──requirements.txt
+└── assets         # Recursos estáticos
+
 ```
 
 ## License
