@@ -1,0 +1,186 @@
+facial_recognition_app/
+│
+├── main.py                 # Punto de entrada principal
+├── requirements.txt        # Dependencias (OpenCV, Kivy, etc.)
+│
+├── data/                   # Base de datos de usuarios y fotos
+│   ├── juan/               # Carpeta por usuario
+│   │   ├── 1.jpg           # Fotos de rostros
+│   │   └── 2.jpg
+│   └── maria/
+│       ├── 1.jpg
+│       └── 2.jpg
+│
+├── exports/                # Carpeta para exportaciones
+│   ├── export_juan_20230815.zip
+│   └── export_all_20230815.zip
+│
+├── modelos/                # Modelos entrenados
+│   ├── global/
+│   │   ├── recognizer.yml  # Modelo combinado
+│   │   └── label_map.txt   # Mapeo de IDs a nombres
+│
+├── modules/
+│   ├── camera/
+│   │   └── camera_utils.py # Manejo de cámara optimizado
+│   │
+│   ├── database/
+│   │   ├── operations.py   # CRUD de usuarios mejorado
+│   │   └── models.py       # Modelos de datos
+│   │
+│   ├── face_recognition/
+│   │   ├── detection.py    # Detección de rostros
+│   │   ├── recognition.py  # Reconocimiento facial con singleton
+│   │   └── training.py     # Entrenamiento optimizado
+│   │
+│   ├── ui/
+│   │   ├── main_menu.py    # Menú principal con carga asíncrona
+│   │   ├── register.py     # Registro con manejo de usuarios existentes
+│   │   ├── recognize.py    # Reconocimiento con texto corregido
+│   │   ├── gallery.py      # Galería de usuarios
+│   │   └── export.py       # Exportación de datos
+│   │
+│   └── utils/
+│       ├── file_io.py      # Manejo de archivos robusto
+│       └── helpers.py      # Funciones auxiliares
+│
+└── assets/                 # Recursos estáticos
+    ├── fonts/
+    ├── icons/
+    └── images/
+
+
+1. main.py
+Clase: FaceApp(App)
+
+Descripción: Punto de entrada principal que inicializa la aplicación y configura el ScreenManager.
+
+Funciones:
+
+build(): Crea la estructura básica y pantallas iniciales.
+
+2. camera_utils.py
+Clase: CameraManager
+
+Descripción: Gestiona el acceso a la cámara y conversión de frames para Kivy.
+
+Funciones clave:
+
+open_camera(): Inicia la cámara con configuración óptima
+
+release_camera(): Libera recursos correctamente
+
+frame_to_texture(): Convierte frames OpenCV a texturas Kivy
+
+3. detection.py
+Clase: FaceDetector
+
+Descripción: Detecta rostros usando Haar Cascades.
+
+Función principal:
+
+detect(): Recibe un frame y devuelve coordenadas de rostros
+
+4. recognition.py
+Clase: FaceRecognizer
+
+Descripción: Maneja el modelo LBPH para reconocimiento facial.
+
+Funciones clave:
+
+load_model(): Carga el modelo entrenado
+
+predict(): Identifica rostros y devuelve (nombre, confianza)
+
+reload_model(): Actualiza el modelo sin reiniciar la app
+
+5. training.py
+Descripción: Entrena el modelo con imágenes de usuarios registrados.
+
+Función principal:
+
+train_model(): Procesa todas las imágenes y genera el modelo
+
+6. operations.py
+Descripción: Operaciones CRUD para la base de datos SQLite de usuarios.
+
+Funciones clave:
+
+add_user(): Registra nuevos usuarios
+
+list_users(): Devuelve todos los usuarios
+
+update_photo_count(): Actualiza contador de fotos
+
+7. file_io.py
+Descripción: Manejo de archivos y carpetas de usuarios.
+
+Funciones clave:
+
+ensure_user_folder(): Crea carpetas para nuevos usuarios
+
+list_user_photos(): Obtiene rutas de fotos de un usuario
+
+export_user_data(): Genera archivos ZIP para exportar
+
+Pantallas UI (módulos/ui/)
+8. main_menu.py
+Clase: MainMenuScreen(Screen)
+
+Funciones:
+
+on_enter/on_leave: Control de cámara
+
+build_complete_ui(): Carga la interfaz después de inicialización
+
+9. register.py
+Clase: RegisterScreen(Screen)
+
+Funciones clave:
+
+start_auto_capture(): Inicia captura automática (20 fotos)
+
+manual_capture(): Toma una sola foto
+
+validate_username(): Valida formatos de nombres
+
+10. recognize.py (ya detallado anteriormente)
+11. gallery.py
+Clase: GalleryScreen(Screen)
+
+Funciones clave:
+
+build_gallery(): Muestra fotos por usuario
+
+show_full_image(): Abre popup con imagen completa
+
+apply_filter(): Filtra usuarios por nombre
+
+12. export.py
+Clase: ExportScreen(Screen)
+
+Funciones clave:
+
+export_data(): Genera ZIP de datos
+
+update_user_list(): Refresca lista de usuarios
+
+Estructura de Datos
+13. models.py
+Clase: User
+
+Descripción: Modelo simple para almacenar datos de usuario (ID, nombre, fecha creación)
+
+14. helpers.py
+Funciones utilitarias:
+
+crop_face_from_frame(): Recorta rostros de imágenes
+
+Flujo Principal
+Inicio: main.py → MainMenuScreen
+
+Registro: Captura fotos → Entrena modelo (register.py + training.py)
+
+Reconocimiento: Detecta e identifica rostros (recognize.py)
+
+Gestión: Exportación y visualización de datos (gallery.py, export.py)
