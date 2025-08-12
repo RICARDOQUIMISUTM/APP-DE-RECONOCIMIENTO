@@ -1,5 +1,6 @@
 import os
 import cv2
+import time  # Importación añadida
 import numpy as np
 from modules.database.operations import list_users, init_db
 from kivy.logger import Logger
@@ -13,27 +14,26 @@ def ensure_model_dir():
     os.makedirs(os.path.join(MODEL_DIR, "global"), exist_ok=True)
 
 def train_model():
-    """Entrenamiento con verificación de datos"""
+    """Entrenamiento optimizado"""
     try:
-        init_db()
-        ensure_model_dir()
+        start_time = time.time()
+        Logger.info("Iniciando entrenamiento...")
         
-        # Verificar que hay datos suficientes
-        users = list_users()
-        if not users:
-            Logger.error("No hay usuarios para entrenar")
-            return False
-            
         # Colectar datos
         faces, labels, label_map = [], [], {}
         label_id = 0
         
-        for user_id, user_name, _, _ in users:
+        # Limitar tamaño de imágenes para entrenamiento
+        MAX_IMAGES_PER_USER = 50  
+        
+        for user_id, user_name, _, _ in list_users():
             user_dir = os.path.join("data", user_name)
             if not os.path.exists(user_dir):
                 continue
                 
-            photos = [f for f in os.listdir(user_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            photos = [f for f in os.listdir(user_dir) 
+                     if f.lower().endswith(('.png', '.jpg', '.jpeg'))][:MAX_IMAGES_PER_USER]
+            
             if not photos:
                 continue
                 
@@ -44,36 +44,37 @@ def train_model():
                 img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
                 if img is not None:
                     img = cv2.resize(img, (200, 200))
-                    img = cv2.equalizeHist(img)
                     faces.append(img)
                     labels.append(label_id)
             
             label_id += 1
 
-        if len(faces) < 2:  # Mínimo 2 imágenes para entrenar
-            Logger.error(f"No hay suficientes imágenes ({len(faces)}) para entrenar")
+        if len(faces) < 2:
+            Logger.error("Insuficientes imágenes para entrenar")
             return False
 
-        # Entrenar y guardar
+        # Entrenamiento con progreso
         recognizer = cv2.face.LBPHFaceRecognizer_create()
+        Logger.info(f"Entrenando con {len(faces)} imágenes...")
         recognizer.train(faces, np.array(labels))
         
-        # Guardar en archivo temporal primero
-        temp_model = f"{GLOBAL_MODEL_PATH}.tmp"
-        recognizer.save(temp_model)
+        # Guardar modelo temporal
+        temp_path = f"{GLOBAL_MODEL_PATH}.tmp"
+        recognizer.save(temp_path)
         
-        # Reemplazar archivos atómicamente
+        # Reemplazar atómicamente
         import shutil
-        shutil.move(temp_model, GLOBAL_MODEL_PATH)
+        shutil.move(temp_path, GLOBAL_MODEL_PATH)
         
         # Guardar etiquetas
         with open(LABEL_MAP_FILE, "w", encoding="utf-8") as f:
             for id_, name in label_map.items():
                 f.write(f"{id_},{name}\n")
         
-        Logger.info(f"Modelo entrenado con {len(faces)} imágenes de {len(label_map)} usuarios")
+        Logger.info(f"Entrenamiento completado en {time.time()-start_time:.2f}s")
         return True
         
     except Exception as e:
-        Logger.error(f"Error crítico en entrenamiento: {e}")
+        Logger.error(f"Error en entrenamiento: {str(e)}")
         return False
+   

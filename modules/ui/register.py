@@ -24,7 +24,7 @@ class RegisterScreen(Screen):
         super().__init__(**kwargs)
         self.detector = FaceDetector()
         self.capture_counter = 0
-        self.max_captures = 20
+        self.max_captures = 10
         self.is_capturing = False
         self._camera_clock = None
         self._capture_clock = None
@@ -61,7 +61,7 @@ class RegisterScreen(Screen):
         btn_layout = BoxLayout(size_hint=(1, 0.2), spacing=10)
         
         self.auto_capture_btn = Button(
-            text="Captura Automática (20 fotos)",
+            text="Captura Automática (10 fotos)",
             background_normal='',
             background_color=(0.2, 0.7, 0.3, 1)
         )
@@ -89,28 +89,21 @@ class RegisterScreen(Screen):
         self.add_widget(layout)
 
     def on_enter(self):
-        """Se ejecuta cuando la pantalla se muestra"""
-        Logger.info("PantallaRegistro: Mostrando pantalla de registro")
+        """Al entrar a la pantalla"""
         try:
+            # Usar el manager en lugar de abrir directamente
             if camera_manager.open_camera():
                 self._camera_clock = Clock.schedule_interval(self.update_camera, 1.0/30.0)
-                self.status_label.text = "[b]Estado:[/b] Cámara activa - Posicione el rostro"
-                self.status_label.color = (0.1, 0.1, 0.1, 1)
         except Exception as e:
-            Logger.error(f"PantallaRegistro: Error al iniciar cámara: {str(e)}")
             self.status_label.text = f"[b]Error:[/b] {str(e)}"
             self.status_label.color = (0.8, 0.2, 0.2, 1)
 
-    def on_leave(self):
-        """Se ejecuta cuando la pantalla se oculta"""
-        Logger.info("PantallaRegistro: Ocultando pantalla de registro")
-        if self._camera_clock:
-            Clock.unschedule(self._camera_clock)
-        if self._capture_clock:
-            Clock.unschedule(self._capture_clock)
-        camera_manager.release_camera()
-        self.is_capturing = False
-        self.capture_counter = 0
+
+        def on_leave(self):
+            """Al salir de la pantalla"""
+            if hasattr(self, '_camera_clock') and self._camera_clock:
+                Clock.unschedule(self._camera_clock)
+            
 
     def update_camera(self, dt):
         """Actualiza la vista previa de la cámara"""
@@ -177,7 +170,7 @@ class RegisterScreen(Screen):
             self.capture_counter = 0
             self._capture_clock = Clock.schedule_interval(
                 lambda dt: self.capture_face(user_folder, user_name, start_count), 
-                0.5  # Captura cada 0.5 segundos
+                0.05  # Captura cada 0.5 segundos
             )
         except Exception as e:
             Logger.error(f"Error en start_auto_capture: {str(e)}")
@@ -292,30 +285,40 @@ class RegisterScreen(Screen):
             self.status_label.color = (0.8, 0.2, 0.2, 1)
 
     def finish_registration(self, user_name):
-        """Finaliza el registro actualizando el modelo"""
+        """Finalización optimizada del registro"""
         self.is_capturing = False
         
         if self.capture_counter > 0:
-            # Entrenar modelo
+            # Mostrar mensaje de progreso
+            self.status_label.text = "[b]Estado:[/b] Entrenando modelo..."
+            self.status_label.color = (0.3, 0.5, 0.8, 1)
+            
+            # Forzar actualización de la UI
+            from kivy.clock import Clock
+            Clock.schedule_once(lambda dt: self._async_finish_registration(user_name), 0.1)
+
+    def _async_finish_registration(self, user_name):
+        """Finalización en segundo plano para no bloquear la UI"""
+        try:
+            # Entrenar modelo (puede tardar)
             if train_model():
-                # Forzar recarga del modelo
+                # Recargar modelo con throttling
                 from modules.face_recognition.recognition import FaceRecognizer
                 recognizer = FaceRecognizer()
-                success = recognizer.reload_model()
                 
-                if success:
-                    self.status_label.text = f"[b]Éxito:[/b] Se agregaron {self.capture_counter} fotos a {user_name}"
+                if recognizer.reload_model():
+                    self.status_label.text = f"[b]Éxito:[/b] {user_name} actualizado"
                     self.status_label.color = (0.2, 0.7, 0.2, 1)
                 else:
-                    self.status_label.text = "[b]Error:[/b] Modelo no se pudo recargar"
-                    self.status_label.color = (0.8, 0.2, 0.2, 1)
+                    self.status_label.text = "[b]Advertencia:[/b] Modelo no recargado"
+                    self.status_label.color = (0.9, 0.6, 0.1, 1)
             else:
                 self.status_label.text = "[b]Error:[/b] Falló el entrenamiento"
                 self.status_label.color = (0.8, 0.2, 0.2, 1)
-        else:
-            self.status_label.text = "[b]Error:[/b] No se capturaron fotos"
+        except Exception as e:
+            Logger.error(f"Error en finalización: {str(e)}")
+            self.status_label.text = "[b]Error:[/b] Proceso falló"
             self.status_label.color = (0.8, 0.2, 0.2, 1)
-            
     def go_back(self, instance):
         """Regresa al menú principal"""
         self.manager.current = 'main_menu'
